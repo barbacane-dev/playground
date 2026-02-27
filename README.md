@@ -1,6 +1,6 @@
 # Barbacane Playground
 
-A complete demonstration environment for the Barbacane API Gateway featuring a realistic Train Travel API, full observability stack (logs, metrics, traces), control plane UI, and mock backend services.
+A complete demonstration environment for the Barbacane API Gateway featuring a realistic Train Travel API, full observability stack (logs, metrics, traces), control plane UI, S3 object storage proxy, and mock backend services.
 
 ## Quick Start
 
@@ -23,7 +23,7 @@ By default the playground pulls the `latest` images from [GitHub Container Regis
 
 ```bash
 cp .env.example .env
-# Edit .env and set BARBACANE_VERSION=0.2.0 (or any release tag)
+# Edit .env and set BARBACANE_VERSION=0.2.1 (or any release tag)
 docker compose pull
 docker compose up -d
 ```
@@ -119,6 +119,30 @@ curl "http://localhost:8080/stations?country=invalid"
 # Invalid passenger count
 curl "http://localhost:8080/trips?origin=...&destination=...&departure_date=2025-03-15&passengers=100"
 # Returns 400 Bad Request (max is 9)
+```
+
+### S3 Object Storage Proxy
+
+The gateway proxies S3 operations to RustFS without exposing credentials to clients.
+
+```bash
+# Get a token first
+TOKEN=$(curl -s -X POST http://localhost:9099/barbacane/token \
+  -d "grant_type=password&client_id=barbacane&username=alice&password=alice" \
+  | jq -r .access_token)
+
+# Upload a file
+curl -X PUT http://localhost:8080/storage/playground/hello.txt \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: text/plain" \
+  -d "Hello from Barbacane!"
+
+# Download it back
+curl http://localhost:8080/storage/playground/hello.txt \
+  -H "Authorization: Bearer $TOKEN"
+
+# Public CDN asset (no auth required, rate-limited)
+curl http://localhost:8080/assets/welcome.txt
 ```
 
 ### CORS
@@ -230,36 +254,39 @@ docker compose down -v
 │  Client  │───────────│ Barbacane │──────│  WireMock │      │ Prometheus│         │
 └──────────┘        │  │  :8080    │      │   :8081   │      │   :9090   │         │
                     │  └──┬──┬──┬──┘      └───────────┘      └─────┬─────┘         │
-                    │     │  │  │                                   │               │
-                    │     │  │  │ OIDC/JWKS      ┌───────────┐     │               │
-                    │     │  │  └────────────────▶│Mock OAuth │     │               │
-                    │     │  │                    │   :9099   │     │               │
-                    │     │  │ publish            └───────────┘     │               │
-                    │     │  ▼                                scrape│               │
-                    │     │ ┌───────────┐                          │               │
-                    │     │ │   NATS    │                          │               │
-                    │     │ │  :4222    │                          │               │
-                    │     │ └───────────┘                          │               │
-                    │     │ logs                                   │               │
-                    │     ▼                                        │               │
-                    │  ┌───────────┐      ┌───────────┐            │               │
-                    │  │   Alloy   │──────│   Loki    │            │               │
-                    │  └───────────┘      │   :3100   │            │               │
-                    │                     └─────┬─────┘            │               │
-                    │        ┌──────────────────┼──────────────────┘               │
+                    │     │  │  │  │                                │               │
+                    │     │  │  │  │ OIDC/JWKS   ┌───────────┐     │               │
+                    │     │  │  │  └─────────────▶│Mock OAuth │     │               │
+                    │     │  │  │                 │   :9099   │     │               │
+                    │     │  │  │ S3 proxy        └───────────┘     │               │
+                    │     │  │  └──────────────▶┌───────────┐ scrape│               │
+                    │     │  │                  │  RustFS   │──────┘               │
+                    │     │  │ publish          │:9000/:9001│                       │
+                    │     │  ▼                  └───────────┘                       │
+                    │     │ ┌───────────┐                                           │
+                    │     │ │   NATS    │                                           │
+                    │     │ │  :4222    │                                           │
+                    │     │ └───────────┘                                           │
+                    │     │ logs                                                    │
+                    │     ▼                                                         │
+                    │  ┌───────────┐      ┌───────────┐      ┌───────────┐         │
+                    │  │   Alloy   │──────│   Loki    │      │   Tempo   │         │
+                    │  └───────────┘      │   :3100   │      │   :3200   │         │
+                    │                     └─────┬─────┘      └─────┬─────┘         │
+                    │        ┌──────────────────┼────────────────── ┘               │
                     │        │                  │                                   │
                     │        ▼                  ▼                                   │
-                    │  ┌─────────────────────────────┐      ┌───────────┐          │
-                    │  │          Grafana            │◄─────│   Tempo   │          │
-                    │  │           :3000             │      │   :3200   │          │
-                    │  └─────────────────────────────┘      └───────────┘          │
-                    │                                              ▲                │
-                    │  ┌───────────────┐                          │ OTLP           │
-                    │  │ Control Plane │                          │                │
-                    │  │     :3001     │              ┌───────────┴───────────┐    │
-                    │  └───────┬───────┘              │       Barbacane       │    │
-                    │          │                      │        (traces)       │    │
-                    │          ▼                      └───────────────────────┘    │
+                    │  ┌─────────────────────────────┐                             │
+                    │  │          Grafana            │                             │
+                    │  │           :3000             │◄── OTLP (Barbacane traces) │
+                    │  └─────────────────────────────┘                             │
+                    │                                                               │
+                    │  ┌───────────────┐                                           │
+                    │  │ Control Plane │                                           │
+                    │  │     :3001     │                                           │
+                    │  └───────┬───────┘                                           │
+                    │          │                                                    │
+                    │          ▼                                                    │
                     │  ┌───────────────┐                                           │
                     │  │   PostgreSQL  │                                           │
                     │  └───────────────┘                                           │
