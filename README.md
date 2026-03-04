@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/img/barbacane-logo-with-galaxy-bg.png" alt="Barbacane Logo" width="400"/>
+</p>
+
 # Barbacane Playground
 
 A complete demonstration environment for the Barbacane API Gateway featuring a realistic Train Travel API, full observability stack (logs, metrics, traces), control plane UI, S3 object storage proxy, and mock backend services.
