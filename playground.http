@@ -151,6 +151,53 @@ GET {{baseUrl}}/assets/welcome.txt
 GET {{baseUrl}}/storage/playground/hello.txt
 
 # ===========================================================================
+# MCP Server (Model Context Protocol · JSON-RPC 2.0)
+# AI agents connect to /__barbacane/mcp to discover and call API tools.
+# ===========================================================================
+
+### Initialize MCP session
+# @name mcp_init
+POST {{baseUrl}}/__barbacane/mcp
+Content-Type: application/json
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"playground","version":"1.0"}}}
+
+### List available tools
+POST {{baseUrl}}/__barbacane/mcp
+Content-Type: application/json
+Mcp-Session-Id: {{mcp_init.response.headers.mcp-session-id}}
+
+{"jsonrpc":"2.0","id":2,"method":"tools/list"}
+
+### Call tool: list stations
+POST {{baseUrl}}/__barbacane/mcp
+Content-Type: application/json
+Mcp-Session-Id: {{mcp_init.response.headers.mcp-session-id}}
+
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"listStations"}}
+
+### Call tool: search trips
+POST {{baseUrl}}/__barbacane/mcp
+Content-Type: application/json
+Mcp-Session-Id: {{mcp_init.response.headers.mcp-session-id}}
+
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"searchTrips","arguments":{"origin":"efdbb9d1-02c2-4bc3-afb7-6788d8782b1e","destination":"b2e783e1-c824-4d63-b37a-d8ee6c0b95da","departure_date":"2025-03-15"}}}
+
+### Call tool: get station details
+POST {{baseUrl}}/__barbacane/mcp
+Content-Type: application/json
+Mcp-Session-Id: {{mcp_init.response.headers.mcp-session-id}}
+
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"getStation","arguments":{"stationId":"efdbb9d1-02c2-4bc3-afb7-6788d8782b1e"}}}
+
+### Ping (heartbeat)
+POST {{baseUrl}}/__barbacane/mcp
+Content-Type: application/json
+Mcp-Session-Id: {{mcp_init.response.headers.mcp-session-id}}
+
+{"jsonrpc":"2.0","id":99,"method":"ping"}
+
+# ===========================================================================
 # Observability
 # ===========================================================================
 

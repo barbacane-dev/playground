@@ -57,6 +57,31 @@ All requests are in **[playground.http](playground.http)** — open it with the 
 | Events | `POST /events/trips/delayed`, `/events/bookings/confirmed`, `/events/payments/succeeded` | Public |
 | S3 proxy | `PUT/GET/DELETE /storage/{bucket}/{key+}` | OIDC |
 | Asset CDN | `GET /assets/{key+}` | Public (rate-limited) |
+| MCP Server | `POST /__barbacane/mcp` | JSON-RPC 2.0 |
+
+### MCP Server (Model Context Protocol)
+
+The Train Travel API is exposed as an MCP server. AI agents can connect to `POST /__barbacane/mcp` to discover and call API operations via JSON-RPC 2.0.
+
+```bash
+# Initialize a session
+curl -s http://localhost:8080/__barbacane/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
+  -D -
+
+# List available tools (use the Mcp-Session-Id from the response above)
+curl -s http://localhost:8080/__barbacane/mcp \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: <session-id>" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+
+# Call a tool
+curl -s http://localhost:8080/__barbacane/mcp \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: <session-id>" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"listStations"}}'
+```
 
 ### Bookings — OIDC flow
 

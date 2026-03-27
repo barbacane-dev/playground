@@ -19,6 +19,10 @@ info:
     name: Train Support
     email: support@trains.example.com
 
+# MCP Server — exposes all operations as AI-callable tools
+x-barbacane-mcp:
+  enabled: true
+
 servers:
   - url: http://localhost:8080
     description: Playground Gateway
