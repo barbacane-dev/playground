@@ -20,7 +20,7 @@ services:
   # Spec Compiler (init container - compiles specs before gateway starts)
   # ==========================================================================
   compiler:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.6.0}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.8.1}
     command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
     volumes:
       - ./specs:/specs:ro
@@ -33,7 +33,7 @@ services:
   # API Gateway (Data Plane)
   # ==========================================================================
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.6.0}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.8.1}
     command: ["serve", "--artifact", "/config/api.bca", "--allow-plaintext-upstream"]
     ports:
       - "8080:8080"
@@ -44,6 +44,16 @@ services:
       RUST_LOG: info
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: barbacane-playground
+      # Since 0.8 an SSRF guard blocks upstream calls to internal/private hosts
+      # by default (fail closed). The playground's upstreams (wiremock, rustfs,
+      # mock-oauth, nats) are all internal Docker services, so opt in. Do NOT
+      # enable this in production unless your upstreams are genuinely internal.
+      BARBACANE_ALLOW_INTERNAL_EGRESS: "true"
+    # The compiler is an init container that writes the .bca before the gateway
+    # loads it. compose runtimes that don't strictly honor
+    # service_completed_successfully can start the gateway mid-write; retry so it
+    # comes up cleanly once the artifact is ready.
+    restart: on-failure
     depends_on:
       compiler:
         condition: service_completed_successfully
@@ -67,12 +77,16 @@ services:
   # Control Plane (Web UI + API)
   # ==========================================================================
   control-plane:
-    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.6.0}
+    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.8.1}
     ports:
       - "3001:80"    # Web UI
       - "9091:9090"  # Control Plane API
     environment:
       DATABASE_URL: postgres://barbacane:barbacane@postgres:5432/barbacane
+      # Since 0.8 the control plane fails closed: it refuses to start without a
+      # non-empty admin token (it can mint API keys, upload plugin WASM, and
+      # deploy artifacts). This is a demo value — set your own in production.
+      BARBACANE_CONTROL_ADMIN_TOKEN: ${BARBACANE_CONTROL_ADMIN_TOKEN:-playground-admin-token}
     depends_on:
       postgres:
         condition: service_healthy
