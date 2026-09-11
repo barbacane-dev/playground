@@ -212,9 +212,9 @@ curl "http://localhost:8080/waf/search?q=../../etc/passwd"
 ```
 
 The rule set pairs regex signatures with the libinjection classifiers
-(`@detectSQLi`, `@detectXSS`), which catch cases regex misses such as the
-tautology `1' OR '1'='1`. With `unsupported_rules: skip` the classifier rules
-build on any gateway image and activate on one that implements them. See
+(`@detectSQLi`, `@detectXSS`), which add coverage for obfuscated injection that
+signatures miss. With `unsupported_rules: skip` the classifier rules build on
+any gateway image and activate on one that implements them. See
 `playground.http` for the full request set.
 
 ## Observability

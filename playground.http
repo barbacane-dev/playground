@@ -221,14 +221,15 @@ GET {{wiremockUrl}}/__admin/requests
 # WAF (SQLi / XSS / traversal): see specs/waf-demo.yaml
 # ===========================================================================
 # Blocking mode. Benign requests pass (200); attacks reach the inbound
-# anomaly threshold and are refused (403). The tautology below is the case
-# the libinjection classifier (@detectSQLi) catches beyond regex signatures;
-# it blocks once the gateway image ships the classifier.
+# anomaly threshold and are refused (403). The rule set scores each attack
+# with both regex signatures and the libinjection classifiers
+# (@detectSQLi/@detectXSS); the classifiers add coverage for obfuscated
+# payloads and activate once the gateway image ships them.
 
 ### Benign search: passes (200)
 GET {{baseUrl}}/waf/search?q=paris
 
-### SQLi tautology: blocked (403), the libinjection case
+### SQLi tautology: blocked (403)
 GET {{baseUrl}}/waf/search?q=1' OR '1'='1
 
 ### SQLi union select: blocked (403)
