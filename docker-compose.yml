@@ -21,7 +21,7 @@ services:
   # ==========================================================================
   compiler:
     image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.8.1}
-    command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
+    command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--spec", "/specs/waf-demo.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
     volumes:
       - ./specs:/specs:ro
       - ./barbacane.yaml:/manifest/barbacane.yaml:ro

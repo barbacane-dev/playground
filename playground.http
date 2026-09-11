@@ -216,3 +216,38 @@ GET {{wiremockUrl}}/__admin/mappings
 
 ### View request log
 GET {{wiremockUrl}}/__admin/requests
+
+# ===========================================================================
+# WAF (SQLi / XSS / traversal): see specs/waf-demo.yaml
+# ===========================================================================
+# Blocking mode. Benign requests pass (200); attacks reach the inbound
+# anomaly threshold and are refused (403). The tautology below is the case
+# the libinjection classifier (@detectSQLi) catches beyond regex signatures;
+# it blocks once the gateway image ships the classifier.
+
+### Benign search: passes (200)
+GET {{baseUrl}}/waf/search?q=paris
+
+### SQLi tautology: blocked (403), the libinjection case
+GET {{baseUrl}}/waf/search?q=1' OR '1'='1
+
+### SQLi union select: blocked (403)
+GET {{baseUrl}}/waf/search?q=1 UNION SELECT password FROM users
+
+### XSS in a query parameter: blocked (403)
+GET {{baseUrl}}/waf/search?q=<script>alert(1)</script>
+
+### Path traversal: blocked (403)
+GET {{baseUrl}}/waf/search?q=../../etc/passwd
+
+### Benign JSON body: passes (200)
+POST {{baseUrl}}/waf/submit
+Content-Type: application/json
+
+{"comment": "great service, thanks"}
+
+### SQLi in a JSON body: blocked (403)
+POST {{baseUrl}}/waf/submit
+Content-Type: application/json
+
+{"comment": "'; DROP TABLE users; --"}
