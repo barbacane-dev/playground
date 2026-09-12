@@ -185,6 +185,38 @@ curl -X OPTIONS http://localhost:8080/stations \
   -v 2>&1 | grep -i "access-control"
 ```
 
+### WAF (SQLi / XSS)
+
+The gateway runs a ModSecurity / OWASP CRS compatible WAF, configured on the
+spec with `x-barbacane-waf` (see `specs/waf-demo.yaml`). Rules compile at build
+time and seal into the artifact. The demo scores SQL injection, cross-site
+scripting and path traversal, and blocks once the inbound anomaly score reaches
+the threshold.
+
+```bash
+# Benign query passes
+curl "http://localhost:8080/waf/search?q=paris"
+# 200 OK
+
+# SQL injection is blocked
+curl "http://localhost:8080/waf/search?q=1%20UNION%20SELECT%20password%20FROM%20users"
+# 403 Forbidden
+
+# XSS is blocked
+curl "http://localhost:8080/waf/search?q=%3Cscript%3Ealert(1)%3C/script%3E"
+# 403 Forbidden
+
+# Path traversal is blocked
+curl "http://localhost:8080/waf/search?q=../../etc/passwd"
+# 403 Forbidden
+```
+
+The rule set pairs regex signatures with the libinjection classifiers
+(`@detectSQLi`, `@detectXSS`), which add coverage for obfuscated injection that
+signatures miss. With `unsupported_rules: skip` the classifier rules build on
+any gateway image and activate on one that implements them. See
+`playground.http` for the full request set.
+
 ## Observability
 
 ### Grafana Dashboards

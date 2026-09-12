@@ -20,8 +20,8 @@ services:
   # Spec Compiler (init container - compiles specs before gateway starts)
   # ==========================================================================
   compiler:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.8.1}
-    command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.9.0}
+    command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--spec", "/specs/waf-demo.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
     volumes:
       - ./specs:/specs:ro
       - ./barbacane.yaml:/manifest/barbacane.yaml:ro
@@ -33,7 +33,7 @@ services:
   # API Gateway (Data Plane)
   # ==========================================================================
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.8.1}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.9.0}
     command: ["serve", "--artifact", "/config/api.bca", "--allow-plaintext-upstream"]
     ports:
       - "8080:8080"
@@ -77,7 +77,7 @@ services:
   # Control Plane (Web UI + API)
   # ==========================================================================
   control-plane:
-    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.8.1}
+    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.9.0}
     ports:
       - "3001:80"    # Web UI
       - "9091:9090"  # Control Plane API
