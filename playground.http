@@ -6,7 +6,7 @@
 
 @baseUrl    = http://localhost:8080
 @oauthUrl   = http://localhost:9099
-@metricsUrl = http://localhost:8080/__barbacane/metrics
+@metricsUrl = http://localhost:8082/metrics
 @wiremockUrl = http://localhost:8081
 
 # ===========================================================================
@@ -218,13 +218,13 @@ GET {{wiremockUrl}}/__admin/mappings
 GET {{wiremockUrl}}/__admin/requests
 
 # ===========================================================================
-# WAF (SQLi / XSS / traversal): see specs/waf-demo.yaml
+# WAF (SQLi / XSS / traversal + outbound leak): see specs/waf-demo.yaml
 # ===========================================================================
 # Blocking mode. Benign requests pass (200); attacks reach the inbound
 # anomaly threshold and are refused (403). The rule set scores each attack
 # with both regex signatures and the libinjection classifiers
-# (@detectSQLi/@detectXSS); the classifiers add coverage for obfuscated
-# payloads and activate once the gateway image ships them.
+# (@detectSQLi/@detectXSS), which add coverage for obfuscated payloads. Every
+# inspected transaction is written to the `waf.audit` log target (audit: on).
 
 ### Benign search: passes (200)
 GET {{baseUrl}}/waf/search?q=paris
@@ -252,3 +252,7 @@ POST {{baseUrl}}/waf/submit
 Content-Type: application/json
 
 {"comment": "'; DROP TABLE users; --"}
+
+### Outbound leak: the upstream response body carries an AWS key, so a
+### response-phase (phase 4) rule blocks the response with 403.
+GET {{baseUrl}}/waf/leak

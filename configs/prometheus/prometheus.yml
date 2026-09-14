@@ -5,11 +5,11 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # Scrape Barbacane gateway metrics
+  # Scrape Barbacane gateway metrics from the admin API port.
   - job_name: 'barbacane'
     static_configs:
-      - targets: ['barbacane:8080']
-    metrics_path: '/__barbacane/metrics'
+      - targets: ['barbacane:8082']
+    metrics_path: '/metrics'
     scrape_interval: 5s
 
   # Scrape Prometheus itself
