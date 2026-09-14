@@ -41,6 +41,16 @@ until [ "$(code "$BASE_URL/__barbacane/health")" = "200" ]; do
 done
 echo "gateway ready after $((i * 2))s"
 
+# The public CDN asset is seeded by the rustfs-init container after the gateway
+# is already serving, so wait for it before the checks race the seeder.
+echo "== waiting for the seeded asset =="
+i=0
+until [ "$(code "$BASE_URL/assets/welcome.txt")" = "200" ]; do
+  i=$((i + 1))
+  if [ "$i" -gt 30 ]; then echo "warning: seeded asset not ready after 60s; the CDN check will report it"; break; fi
+  sleep 2
+done
+
 echo "== core =="
 check "200" "GET /stations" "$BASE_URL/stations"
 check "400" "GET /stations?country=invalid (schema validation)" "$BASE_URL/stations?country=invalid"

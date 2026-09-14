@@ -27,7 +27,7 @@ jobs:
     outputs:
       tag: ${{ steps.pick.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: pick
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -47,7 +47,7 @@ jobs:
     env:
       BARBACANE_VERSION: ${{ needs.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Compile the specs
         run: docker compose run --rm compiler
 
@@ -58,7 +58,7 @@ jobs:
     env:
       BARBACANE_VERSION: ${{ needs.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Start the stack
         # The observability viewers (Grafana/Loki/Tempo/Alloy) are not needed for
