@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly, against the `latest` gateway image, to catch upstream drift.
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Barbacane image tag to test (defaults to the pin in .env.example)
+        required: false
+        default: ''
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Resolve which gateway image tag this run tests: the nightly schedule uses
+  # `latest`, a manual run uses its input, everything else uses the .env.example
+  # pin.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            TAG=latest
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="$(grep '^BARBACANE_VERSION=' .env.example | cut -d= -f2)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Testing Barbacane image tag: $TAG"
+
+  # Fast gate: the specs must compile with this gateway build.
+  compile:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      BARBACANE_VERSION: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile the specs
+        run: docker compose run --rm compiler
+
+  # Full gate: bring up the stack and exercise every demonstrated use case.
+  smoke:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      BARBACANE_VERSION: ${{ needs.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the stack
+        # The observability viewers (Grafana/Loki/Tempo/Alloy) are not needed for
+        # the smoke test; bring up only the gateway, its upstreams, the asset
+        # seeder and Prometheus. Compose pulls in each service's dependencies.
+        run: docker compose up -d --pull always barbacane prometheus rustfs-init
+
+      - name: Run the smoke test
+        run: bash scripts/smoke.sh
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 300
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
