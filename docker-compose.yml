@@ -42,7 +42,10 @@ services:
     ports:
       - "8080:8080"
       - "8443:8443"
-      - "8082:8082"    # admin API (metrics, health, provenance)
+      # Admin API (metrics, health, provenance). Unauthenticated, so publish it
+      # to loopback only; Prometheus reaches the container port over the Docker
+      # network regardless.
+      - "127.0.0.1:8082:8082"
     volumes:
       - artifact_data:/config:ro
     environment:
