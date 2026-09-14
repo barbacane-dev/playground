@@ -27,7 +27,7 @@ By default the playground pulls the `latest` images from [GitHub Container Regis
 
 ```bash
 cp .env.example .env
-# Edit .env and set BARBACANE_VERSION=0.8.1 (or any release tag)
+# Edit .env and set BARBACANE_VERSION=0.10.0 (or any release tag)
 docker compose pull
 docker compose up -d
 ```
@@ -135,7 +135,7 @@ The `/stations` endpoint has a 500ms SLO. Violations are logged and emit metrics
 
 ```bash
 # Check metrics for SLO violations
-curl http://localhost:8080/__barbacane/metrics | grep slo
+curl http://localhost:8082/metrics | grep slo
 ```
 
 ### Request Validation
@@ -185,13 +185,14 @@ curl -X OPTIONS http://localhost:8080/stations \
   -v 2>&1 | grep -i "access-control"
 ```
 
-### WAF (SQLi / XSS)
+### WAF (SQLi / XSS + outbound leak)
 
 The gateway runs a ModSecurity / OWASP CRS compatible WAF, configured on the
 spec with `x-barbacane-waf` (see `specs/waf-demo.yaml`). Rules compile at build
 time and seal into the artifact. The demo scores SQL injection, cross-site
-scripting and path traversal, and blocks once the inbound anomaly score reaches
-the threshold.
+scripting and path traversal on the request and blocks once the inbound anomaly
+score reaches the threshold, and inspects the response body for a leaked
+credential (a phase-4 rule).
 
 ```bash
 # Benign query passes
@@ -209,13 +210,18 @@ curl "http://localhost:8080/waf/search?q=%3Cscript%3Ealert(1)%3C/script%3E"
 # Path traversal is blocked
 curl "http://localhost:8080/waf/search?q=../../etc/passwd"
 # 403 Forbidden
+
+# A response body carrying an AWS key is blocked on the way out (phase 4)
+curl "http://localhost:8080/waf/leak"
+# 403 Forbidden
 ```
 
 The rule set pairs regex signatures with the libinjection classifiers
 (`@detectSQLi`, `@detectXSS`), which add coverage for obfuscated injection that
-signatures miss. With `unsupported_rules: skip` the classifier rules build on
-any gateway image and activate on one that implements them. See
-`playground.http` for the full request set.
+signatures miss. Every inspected transaction is written to the `waf.audit` log
+target (`audit: on`); see it with
+`podman logs playground_barbacane_1 | grep waf.audit`. See `playground.http`
+for the full request set.
 
 ## Observability
 
@@ -235,7 +241,7 @@ The pre-configured **Barbacane API Gateway** dashboard shows:
 View raw Prometheus metrics:
 
 ```bash
-curl http://localhost:8080/__barbacane/metrics
+curl http://localhost:8082/metrics
 ```
 
 Key metrics:
