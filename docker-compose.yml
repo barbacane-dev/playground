@@ -22,6 +22,9 @@ services:
   compiler:
     image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.10.0}
     command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--spec", "/specs/waf-demo.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
+    # Run as root so the init container can write the shared artifact volume,
+    # which is root-owned by default. The gateway mounts it read-only.
+    user: "0:0"
     volumes:
       - ./specs:/specs:ro
       - ./barbacane.yaml:/manifest/barbacane.yaml:ro
