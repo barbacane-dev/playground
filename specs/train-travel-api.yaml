@@ -338,6 +338,8 @@ paths:
             issuer_url: "http://mock-oauth:8080/barbacane"
             issuer_override: "http://localhost:9099/barbacane"
             audience: "train-travel-api"
+      security:
+        - OpenIdConnect: []
       parameters:
         - name: status
           in: query
@@ -389,6 +391,8 @@ paths:
           config:
             latency_slo_ms: 1000
             detailed_request_logs: true
+      security:
+        - OpenIdConnect: []
       requestBody:
         required: true
         content:
@@ -429,6 +433,8 @@ paths:
             issuer_url: "http://mock-oauth:8080/barbacane"
             issuer_override: "http://localhost:9099/barbacane"
             audience: "train-travel-api"
+      security:
+        - OpenIdConnect: []
       parameters:
         - name: bookingId
           in: path
@@ -462,6 +468,8 @@ paths:
             issuer_url: "http://mock-oauth:8080/barbacane"
             issuer_override: "http://localhost:9099/barbacane"
             audience: "train-travel-api"
+      security:
+        - OpenIdConnect: []
       parameters:
         - name: bookingId
           in: path
@@ -492,6 +500,8 @@ paths:
             issuer_url: "http://mock-oauth:8080/barbacane"
             issuer_override: "http://localhost:9099/barbacane"
             audience: "train-travel-api"
+      security:
+        - OpenIdConnect: []
       parameters:
         - name: bookingId
           in: path
@@ -527,6 +537,8 @@ paths:
             issuer_url: "http://mock-oauth:8080/barbacane"
             issuer_override: "http://localhost:9099/barbacane"
             audience: "train-travel-api"
+      security:
+        - OpenIdConnect: []
       parameters:
         - name: bookingId
           in: path
@@ -563,6 +575,8 @@ paths:
             latency_slo_ms: 5000
             detailed_request_logs: true
             detailed_response_logs: true
+      security:
+        - OpenIdConnect: []
       parameters:
         - name: bookingId
           in: path
@@ -592,6 +606,10 @@ paths:
           $ref: "#/components/responses/PaymentRequired"
 
 components:
+  securitySchemes:
+    OpenIdConnect:
+      type: openIdConnect
+      openIdConnectUrl: http://localhost:9099/barbacane/.well-known/openid-configuration
   schemas:
     Station:
       type: object

@@ -20,7 +20,7 @@ services:
   # Spec Compiler (init container - compiles specs before gateway starts)
   # ==========================================================================
   compiler:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.10.0}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.11.0}
     command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--spec", "/specs/waf-demo.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
     # Run as root so the init container can write the shared artifact volume,
     # which is root-owned by default. The gateway mounts it read-only.
@@ -36,7 +36,7 @@ services:
   # API Gateway (Data Plane)
   # ==========================================================================
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.10.0}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.11.0}
     # --admin-bind on 0.0.0.0 exposes the admin API (/health, /metrics,
     # /provenance) to Prometheus and the host. It defaults to loopback, which
     # other containers cannot reach. The admin endpoints are unauthenticated;
@@ -88,7 +88,7 @@ services:
   # Control Plane (Web UI + API)
   # ==========================================================================
   control-plane:
-    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.10.0}
+    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.11.0}
     ports:
       - "3001:80"    # Web UI
       - "9091:9090"  # Control Plane API

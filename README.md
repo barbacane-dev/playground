@@ -27,7 +27,7 @@ By default the playground pulls the `latest` images from [GitHub Container Regis
 
 ```bash
 cp .env.example .env
-# Edit .env and set BARBACANE_VERSION=0.10.0 (or any release tag)
+# Edit .env and set BARBACANE_VERSION=0.11.0 (or any release tag)
 docker compose pull
 docker compose up -d
 ```
