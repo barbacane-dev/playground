@@ -7,7 +7,7 @@
 #
 # Then visit:
 #   - Gateway: http://localhost:8080
-#   - Control Plane UI: http://localhost:3001
+#   - Control Plane API: http://localhost:9091
 #   - Grafana: http://localhost:3000 (admin/admin)
 #   - Prometheus: http://localhost:9090
 #   - NATS: nats://localhost:4222
@@ -17,18 +17,44 @@
 
 services:
   # ==========================================================================
+  # Signing key (init container - creates the artifact signing key once)
+  # ==========================================================================
+  # The private key stays in signing_key, which only the compiler mounts; the
+  # public key goes to trusted_key, which the gateway pins. The key survives
+  # restarts; removing the volumes replaces it.
+  keygen:
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.1}
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        [ -f /keys/private/signing.pk8 ] || barbacane key generate --out /keys/private/signing.pk8 > /dev/null
+        barbacane key public --key /keys/private/signing.pk8 > /keys/public/signing.pub
+    volumes:
+      - signing_key:/keys/private
+      - trusted_key:/keys/public
+    restart: "no"
+
+  # ==========================================================================
   # Spec Compiler (init container - compiles specs before gateway starts)
   # ==========================================================================
   compiler:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.12.3}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.1}
     command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--spec", "/specs/waf-demo.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
-    # Run as root so the init container can write the shared artifact volume,
-    # which is root-owned by default. The gateway mounts it read-only.
+    # Root, to write the shared artifact volume (root-owned) and read the
+    # signing key (owner-only). The gateway mounts the artifact read-only.
     user: "0:0"
+    environment:
+      BARBACANE_SIGNING_KEY: /keys/signing.pk8
     volumes:
       - ./specs:/specs:ro
       - ./barbacane.yaml:/manifest/barbacane.yaml:ro
       - artifact_data:/output
+      - signing_key:/keys:ro
+    depends_on:
+      keygen:
+        condition: service_completed_successfully
     # Only run once, then exit
     restart: "no"
 
@@ -36,12 +62,16 @@ services:
   # API Gateway (Data Plane)
   # ==========================================================================
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-0.12.3}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.1}
+    # serve loads only artifacts signed by the key BARBACANE_TRUSTED_PUBKEY
+    # pins: here, the public key the keygen container wrote.
     # --admin-bind on 0.0.0.0 exposes the admin API (/health, /metrics,
     # /provenance) to Prometheus and the host. It defaults to loopback, which
     # other containers cannot reach. The admin endpoints are unauthenticated;
     # keep this on an internal network in production.
-    command: ["serve", "--artifact", "/config/api.bca", "--allow-plaintext-upstream", "--admin-bind", "0.0.0.0:8082"]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - BARBACANE_TRUSTED_PUBKEY="$$(cat /keys/signing.pub)" exec barbacane serve --artifact /config/api.bca --allow-plaintext-upstream --admin-bind 0.0.0.0:8082
     ports:
       - "8080:8080"
       - "8443:8443"
@@ -51,14 +81,15 @@ services:
       - "127.0.0.1:8082:8082"
     volumes:
       - artifact_data:/config:ro
+      - trusted_key:/keys:ro
     environment:
       RUST_LOG: info
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: barbacane-playground
-      # Since 0.8 an SSRF guard blocks upstream calls to internal/private hosts
-      # by default (fail closed). The playground's upstreams (wiremock, rustfs,
-      # mock-oauth, nats) are all internal Docker services, so opt in. Do NOT
-      # enable this in production unless your upstreams are genuinely internal.
+      # The SSRF guard blocks upstream calls to internal/private hosts by
+      # default. The playground's upstreams (wiremock, rustfs, mock-oauth, nats)
+      # are all internal Docker services, so opt in. Do NOT enable this in
+      # production unless your upstreams are genuinely internal.
       BARBACANE_ALLOW_INTERNAL_EGRESS: "true"
       # specs/s3-proxy.yaml gives the s3 dispatcher's secret_access_key as
       # env://S3_SECRET_ACCESS_KEY, resolved when the gateway loads the artifact.
@@ -89,19 +120,18 @@ services:
       - "logging=alloy"
 
   # ==========================================================================
-  # Control Plane (Web UI + API)
+  # Control Plane (REST API)
   # ==========================================================================
   control-plane:
-    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-0.12.3}
+    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-1.0.0-rc.1}
     ports:
-      - "3001:80"    # Web UI
-      - "9091:9090"  # Control Plane API
+      - "9091:9090"  # Control Plane API (Prometheus has 9090 on the host)
     environment:
       DATABASE_URL: postgres://barbacane:barbacane@postgres:5432/barbacane
-      # Since 0.8 the control plane fails closed: it refuses to start without a
-      # non-empty admin token (it can mint API keys, upload plugin WASM, and
-      # deploy artifacts). This is a demo value — set your own in production.
-      BARBACANE_CONTROL_ADMIN_TOKEN: ${BARBACANE_CONTROL_ADMIN_TOKEN:-playground-admin-token}
+      # The control plane refuses to start without an admin token of at least
+      # 32 bytes (it can mint API keys, upload plugin WASM, and deploy
+      # artifacts). This is a demo value: set your own in production.
+      BARBACANE_CONTROL_ADMIN_TOKEN: ${BARBACANE_CONTROL_ADMIN_TOKEN:-playground-admin-token-change-me-0123456789}
     depends_on:
       postgres:
         condition: service_healthy
@@ -344,3 +374,5 @@ volumes:
   tempo_data:
   grafana_data:
   rustfs_data:
+  signing_key:
+  trusted_key:

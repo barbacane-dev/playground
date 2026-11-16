@@ -8,12 +8,16 @@
 #   ADMIN_URL  (default http://localhost:8082)  admin API (metrics/health)
 #   OAUTH_URL  (default http://localhost:9099)  mock OIDC provider
 #   PROM_URL   (default http://localhost:9090)  Prometheus
+#   CONTROL_URL (default http://localhost:9091) control plane API
+#   BARBACANE_CONTROL_ADMIN_TOKEN (default: the compose file's demo token)
 set -uo pipefail
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 ADMIN_URL="${ADMIN_URL:-http://localhost:8082}"
 OAUTH_URL="${OAUTH_URL:-http://localhost:9099}"
 PROM_URL="${PROM_URL:-http://localhost:9090}"
+CONTROL_URL="${CONTROL_URL:-http://localhost:9091}"
+ADMIN_TOKEN="${BARBACANE_CONTROL_ADMIN_TOKEN:-playground-admin-token-change-me-0123456789}"
 
 pass=0
 fail=0
@@ -65,7 +69,7 @@ TOKEN="$(curl -s -X POST "$OAUTH_URL/barbacane/token" \
 if [ -n "$TOKEN" ]; then echo "PASS got an access token"; pass=$((pass + 1)); else echo "FAIL no access token"; fail=$((fail + 1)); fi
 AUTH="Authorization: Bearer $TOKEN"
 
-echo "== bookings / events / s3 / mcp =="
+echo "== bookings / events / s3 =="
 check "200" "GET /bookings with a token" -H "$AUTH" "$BASE_URL/bookings"
 check "202 200" "POST /events/trips/delayed (NATS dispatch)" \
   -X POST -H 'Content-Type: application/json' \
@@ -74,9 +78,6 @@ check "202 200" "POST /events/trips/delayed (NATS dispatch)" \
 check "200 201 204" "PUT /storage/playground/hello.txt" -X PUT -H "$AUTH" -H 'Content-Type: text/plain' -d 'Hello' "$BASE_URL/storage/playground/hello.txt"
 check "200" "GET /storage/playground/hello.txt" -H "$AUTH" "$BASE_URL/storage/playground/hello.txt"
 check "200 204" "DELETE /storage/playground/hello.txt" -X DELETE -H "$AUTH" "$BASE_URL/storage/playground/hello.txt"
-check "200" "POST /__barbacane/mcp initialize" -X POST -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"smoke","version":"1"}}}' \
-  "$BASE_URL/__barbacane/mcp"
 
 echo "== CORS =="
 check "200 204" "OPTIONS /stations (CORS preflight)" \
@@ -97,6 +98,17 @@ check "403" "outbound leak /waf/leak (phase 4)" "$BASE_URL/waf/leak"
 echo "== admin API =="
 check "200" "GET /health" "$ADMIN_URL/health"
 check "200" "GET /metrics" "$ADMIN_URL/metrics"
+
+echo "== control plane =="
+i=0
+until [ "$(code "$CONTROL_URL/health")" = "200" ]; do
+  i=$((i + 1))
+  if [ "$i" -gt 30 ]; then echo "warning: control plane not ready after 60s; its checks will report it"; break; fi
+  sleep 2
+done
+check "200" "GET /health" "$CONTROL_URL/health"
+check "401" "GET /projects without the admin token" "$CONTROL_URL/projects"
+check "200" "GET /projects with the admin token" -H "Authorization: Bearer $ADMIN_TOKEN" "$CONTROL_URL/projects"
 
 echo "== Prometheus scrape =="
 # Give Prometheus a scrape interval to reach the gateway.

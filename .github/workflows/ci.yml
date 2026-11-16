@@ -5,7 +5,8 @@ on:
   push:
     branches: [main]
   schedule:
-    # Nightly, against the `latest` gateway image, to catch upstream drift.
+    # Nightly, against the `latest` gateway image (or a newer pre-release pin),
+    # to catch upstream drift.
     - cron: '0 5 * * *'
   workflow_dispatch:
     inputs:
@@ -19,9 +20,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Resolve which gateway image tag this run tests: the nightly schedule uses
-  # `latest`, a manual run uses its input, everything else uses the .env.example
-  # pin.
+  # Resolve which gateway image tag this run tests: a manual run uses its input,
+  # the nightly schedule uses `latest` unless the .env.example pin is a
+  # pre-release (which `latest` does not move to), everything else uses the pin.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -30,12 +31,13 @@ jobs:
       - uses: actions/checkout@v5
       - id: pick
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            TAG=latest
-          elif [ -n "${{ github.event.inputs.version }}" ]; then
+          PIN="$(grep '^BARBACANE_VERSION=' .env.example | cut -d= -f2)"
+          if [ -n "${{ github.event.inputs.version }}" ]; then
             TAG="${{ github.event.inputs.version }}"
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "${PIN#*-}" = "$PIN" ]; then
+            TAG=latest
           else
-            TAG="$(grep '^BARBACANE_VERSION=' .env.example | cut -d= -f2)"
+            TAG="$PIN"
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "Testing Barbacane image tag: $TAG"
@@ -63,8 +65,9 @@ jobs:
       - name: Start the stack
         # The observability viewers (Grafana/Loki/Tempo/Alloy) are not needed for
         # the smoke test; bring up only the gateway, its upstreams, the asset
-        # seeder and Prometheus. Compose pulls in each service's dependencies.
-        run: docker compose up -d --pull always barbacane prometheus rustfs-init
+        # seeder, the control plane and Prometheus. Compose pulls in each
+        # service's dependencies.
+        run: docker compose up -d --pull always barbacane control-plane prometheus rustfs-init
 
       - name: Run the smoke test
         run: bash scripts/smoke.sh
