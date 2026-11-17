@@ -4,7 +4,7 @@
 
 # Barbacane Playground
 
-A complete demonstration environment for the Barbacane API Gateway featuring a realistic Train Travel API, full observability stack (logs, metrics, traces), control plane UI, S3 object storage proxy, and mock backend services.
+A complete demonstration environment for the Barbacane API Gateway featuring a realistic Train Travel API, full observability stack (logs, metrics, traces), signed artifacts, the control plane API, S3 object storage proxy, and mock backend services.
 
 ## Quick Start
 
@@ -19,25 +19,29 @@ docker compose ps
 curl http://localhost:8080/stations
 ```
 
-That's it! The API specs are compiled automatically before the gateway starts.
+That's it! The API specs are compiled and signed automatically before the gateway starts.
 
 ## Version
 
-By default the playground pulls the `latest` images from [GitHub Container Registry](https://github.com/orgs/barbacane-dev/packages). To pin a specific release, copy `.env.example` and set the version:
+The playground pulls the Barbacane release `docker-compose.yml` pins (`1.0.0-rc.1`) from [GitHub Container Registry](https://github.com/orgs/barbacane-dev/packages). It needs 1.0.0-rc.1 or later. To run another release, copy `.env.example` and set the version:
 
 ```bash
 cp .env.example .env
-# Edit .env and set BARBACANE_VERSION=0.12.3 (or any release tag)
+# Edit .env and set BARBACANE_VERSION to a release tag
 docker compose pull
 docker compose up -d
 ```
+
+## Signed artifacts
+
+The gateway loads only artifacts signed by the key it pins. On the first start, the `keygen` init container creates an Ed25519 signing key in the `signing_key` volume and writes its public key to the `trusted_key` volume. The `compiler` signs the artifact with the private key (`BARBACANE_SIGNING_KEY`), and the gateway pins the public key (`BARBACANE_TRUSTED_PUBKEY`) and never sees the private one. The key is kept across restarts; `docker compose down -v` deletes it with the other volumes, and the next start creates a new one.
 
 ## Services
 
 | Service | URL | Description |
 |---------|-----|-------------|
 | **Gateway** | http://localhost:8080 | Barbacane API Gateway (Data Plane) |
-| **Control Plane** | http://localhost:3001 | Web UI for managing APIs |
+| **Control Plane** | http://localhost:9091 | REST API for projects, specs, artifacts and deployments (admin token) |
 | **Grafana** | http://localhost:3000 | Dashboards (admin/admin) |
 | **Prometheus** | http://localhost:9090 | Metrics |
 | **NATS** | nats://localhost:4222 | Message broker ([monitoring](http://localhost:8222)) |
@@ -57,31 +61,6 @@ All requests are in **[playground.http](playground.http)** — open it with the 
 | Events | `POST /events/trips/delayed`, `/events/bookings/confirmed`, `/events/payments/succeeded` | Public |
 | S3 proxy | `PUT/GET/DELETE /storage/{bucket}/{key+}` | OIDC |
 | Asset CDN | `GET /assets/{key+}` | Public (rate-limited) |
-| MCP Server | `POST /__barbacane/mcp` | JSON-RPC 2.0 |
-
-### MCP Server (Model Context Protocol)
-
-The Train Travel API is exposed as an MCP server. AI agents can connect to `POST /__barbacane/mcp` to discover and call API operations via JSON-RPC 2.0.
-
-```bash
-# Initialize a session
-curl -s http://localhost:8080/__barbacane/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-  -D -
-
-# List available tools (use the Mcp-Session-Id from the response above)
-curl -s http://localhost:8080/__barbacane/mcp \
-  -H "Content-Type: application/json" \
-  -H "Mcp-Session-Id: <session-id>" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-
-# Call a tool
-curl -s http://localhost:8080/__barbacane/mcp \
-  -H "Content-Type: application/json" \
-  -H "Mcp-Session-Id: <session-id>" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"listStations"}}'
-```
 
 ### Bookings — OIDC flow
 
@@ -266,12 +245,22 @@ Distributed tracing is available in Grafana (Explore > Tempo).
 
 ## Control Plane
 
-The Control Plane UI at http://localhost:3001 provides:
-- API specification management
-- Gateway configuration
-- Plugin management
+The control plane's REST API is at http://localhost:9091: projects, specs, compilations, artifacts, plugins, data planes and deployments. Every request but `GET /health` carries the admin token, `BARBACANE_CONTROL_ADMIN_TOKEN` (the demo default is in `.env.example`):
 
-The Control Plane API is available at http://localhost:9091.
+```bash
+TOKEN=playground-admin-token-change-me-0123456789
+curl http://localhost:9091/projects -H "Authorization: Bearer $TOKEN"
+```
+
+The `barbacane` CLI calls the same API with `barbacane control <resource> <command>` (see the [CLI reference](https://github.com/barbacane-dev/barbacane/blob/main/docs/reference/cli.md#barbacane-control)):
+
+```bash
+export BARBACANE_CONTROL_URL=http://localhost:9091
+export BARBACANE_CONTROL_ADMIN_TOKEN=playground-admin-token-change-me-0123456789
+barbacane control projects list
+```
+
+The API describes itself at http://localhost:9091/openapi.
 
 ## WireMock Admin
 
@@ -350,7 +339,7 @@ docker compose down -v
                     │                                                               │
                     │  ┌───────────────┐                                           │
                     │  │ Control Plane │                                           │
-                    │  │     :3001     │                                           │
+                    │  │     :9091     │                                           │
                     │  └───────┬───────┘                                           │
                     │          │                                                    │
                     │          ▼                                                    │
