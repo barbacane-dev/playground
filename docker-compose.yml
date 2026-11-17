@@ -60,6 +60,10 @@ services:
       # mock-oauth, nats) are all internal Docker services, so opt in. Do NOT
       # enable this in production unless your upstreams are genuinely internal.
       BARBACANE_ALLOW_INTERNAL_EGRESS: "true"
+      # specs/s3-proxy.yaml gives the s3 dispatcher's secret_access_key as
+      # env://S3_SECRET_ACCESS_KEY, resolved when the gateway loads the artifact.
+      # It must match RUSTFS_SECRET_KEY below.
+      S3_SECRET_ACCESS_KEY: playground-secret
     # The compiler is an init container that writes the .bca before the gateway
     # loads it. compose runtimes that don't strictly honor
     # service_completed_successfully can start the gateway mid-write; retry so it

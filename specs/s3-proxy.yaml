@@ -42,7 +42,7 @@ paths:
         config:
           region: us-east-1
           access_key_id: playground
-          secret_access_key: playground-secret
+          secret_access_key: env://S3_SECRET_ACCESS_KEY
           endpoint: http://rustfs:9000
           force_path_style: true
       responses:
@@ -93,7 +93,7 @@ paths:
         config:
           region: us-east-1
           access_key_id: playground
-          secret_access_key: playground-secret
+          secret_access_key: env://S3_SECRET_ACCESS_KEY
           endpoint: http://rustfs:9000
           force_path_style: true
       responses:
@@ -130,7 +130,7 @@ paths:
         config:
           region: us-east-1
           access_key_id: playground
-          secret_access_key: playground-secret
+          secret_access_key: env://S3_SECRET_ACCESS_KEY
           endpoint: http://rustfs:9000
           force_path_style: true
       responses:
@@ -165,7 +165,7 @@ paths:
         config:
           region: us-east-1
           access_key_id: playground
-          secret_access_key: playground-secret
+          secret_access_key: env://S3_SECRET_ACCESS_KEY
           endpoint: http://rustfs:9000
           force_path_style: true
           bucket: assets
