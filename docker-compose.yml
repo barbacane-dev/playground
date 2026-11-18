@@ -136,7 +136,8 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9090"]
+      # The image has no shell: `barbacane-control health` calls GET /health.
+      test: ["CMD", "/usr/local/bin/barbacane-control", "health"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -72,6 +72,27 @@ jobs:
       - name: Run the smoke test
         run: bash scripts/smoke.sh
 
+      # Every running service with a health check reports healthy: a check the
+      # image cannot run (a shell command in an image without a shell) fails
+      # here, though the smoke test reaches the service over HTTP.
+      - name: Check the health checks
+        run: |
+          for container in $(docker compose ps -q); do
+            name=$(docker inspect -f '{{.Name}}' "$container")
+            [ -n "$(docker inspect -f '{{if .State.Health}}yes{{end}}' "$container")" ] || continue
+            status=
+            for _ in $(seq 1 30); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' "$container")
+              [ "$status" = healthy ] && break
+              sleep 3
+            done
+            echo "$name: $status"
+            if [ "$status" != healthy ]; then
+              docker inspect -f '{{json .State.Health.Log}}' "$container"
+              exit 1
+            fi
+          done
+
       - name: Dump logs on failure
         if: failure()
         run: docker compose logs --no-color --tail 300
