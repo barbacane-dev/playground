@@ -23,7 +23,7 @@ services:
   # public key goes to trusted_key, which the gateway pins. The key survives
   # restarts; removing the volumes replaces it.
   keygen:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.1}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.2}
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -40,7 +40,7 @@ services:
   # Spec Compiler (init container - compiles specs before gateway starts)
   # ==========================================================================
   compiler:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.1}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.2}
     command: ["compile", "--spec", "/specs/train-travel-api.yaml", "--spec", "/specs/train-events.yaml", "--spec", "/specs/s3-proxy.yaml", "--spec", "/specs/waf-demo.yaml", "--manifest", "/manifest/barbacane.yaml", "--output", "/output/api.bca", "--allow-plaintext"]
     # Root, to write the shared artifact volume (root-owned) and read the
     # signing key (owner-only). The gateway mounts the artifact read-only.
@@ -62,7 +62,7 @@ services:
   # API Gateway (Data Plane)
   # ==========================================================================
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.1}
+    image: ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION:-1.0.0-rc.2}
     # serve loads only artifacts signed by the key BARBACANE_TRUSTED_PUBKEY
     # pins: here, the public key the keygen container wrote.
     # --admin-bind on 0.0.0.0 exposes the admin API (/health, /metrics,
@@ -123,7 +123,7 @@ services:
   # Control Plane (REST API)
   # ==========================================================================
   control-plane:
-    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-1.0.0-rc.1}
+    image: ghcr.io/barbacane-dev/barbacane-control:${BARBACANE_VERSION:-1.0.0-rc.2}
     ports:
       - "9091:9090"  # Control Plane API (Prometheus has 9090 on the host)
     environment:
