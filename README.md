@@ -23,7 +23,7 @@ That's it! The API specs are compiled and signed automatically before the gatewa
 
 ## Version
 
-The playground pulls the Barbacane release `docker-compose.yml` pins (`1.0.0-rc.1`) from [GitHub Container Registry](https://github.com/orgs/barbacane-dev/packages). It needs 1.0.0-rc.1 or later. To run another release, copy `.env.example` and set the version:
+The playground pulls the Barbacane release `docker-compose.yml` pins (`1.0.0-rc.2`) from [GitHub Container Registry](https://github.com/orgs/barbacane-dev/packages). It needs 1.0.0-rc.2 or later. To run another release, copy `.env.example` and set the version:
 
 ```bash
 cp .env.example .env
